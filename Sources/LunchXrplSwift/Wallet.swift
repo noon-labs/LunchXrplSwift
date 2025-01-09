@@ -398,6 +398,9 @@ public struct Wallet {
     }
     
     public func getServerInfo() async throws -> BaseResponse<ServerInfoResponse>? {
+        if !self.client.isConnected() {
+            _ = try await self.client.connect().get()
+        }
         guard let eventLoop = self.client.connection.ws?.eventLoop else {
             throw WalletError.NotFound
         }
