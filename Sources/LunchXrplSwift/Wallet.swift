@@ -103,6 +103,41 @@ public struct Wallet {
         return try await promise.futureResult.get()
     }
     
+    public func getAccountLines(address: String? = nil, peer: String) async throws -> AccountLinesResponse {
+        if self.client.connection.ws == nil {
+            _ = try await self.client.connect().get()
+        }
+        
+        guard let eventLoop = self.client.connection.ws?.eventLoop else {
+            throw WalletError.NotFound
+        }
+        
+        let promise = eventLoop.makePromise(of: AccountLinesResponse.self)
+        
+        eventLoop.execute {
+            Task {
+                do {
+                    if !self.client.isConnected() {
+                        _ = try await self.client.connect().get()
+                    }
+                    
+                    let xrpAddress = address ?? self.keyPairs.classicAddress
+                    let accLines = AccountLinesRequest(account: xrpAddress, peer: peer)
+                    
+                    guard let resp = try await self.client.request(r: accLines).get() as? BaseResponse<AccountLinesResponse>,
+                          let result = resp.result else {
+                        throw WalletError.NoResult
+                    }
+                    
+                    promise.succeed(result)
+                } catch {
+                    promise.fail(error)
+                }
+            }
+        }
+        return try await promise.futureResult.get()
+    }
+    
     public func getTokensOfAccount(address: String?) async throws -> AccountObjectsResponse {
         if self.client.connection.ws == nil {
             _ = try await self.client.connect().get()
