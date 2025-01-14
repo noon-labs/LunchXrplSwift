@@ -103,7 +103,7 @@ public struct Wallet {
         return try await promise.futureResult.get()
     }
     
-    public func getAccountLines(address: String? = nil, peer: String) async throws -> AccountLinesResponse {
+    public func getAccountLines(address: String? = nil, peer: String? = nil) async throws -> AccountLinesResponse {
         if self.client.connection.ws == nil {
             _ = try await self.client.connect().get()
         }
@@ -137,7 +137,7 @@ public struct Wallet {
         }
         return try await promise.futureResult.get()
     }
-    
+    // TODO(KUSH): Use AccountCurrenciesRequest
     public func getTokensOfAccount(address: String?) async throws -> AccountObjectsResponse {
         if self.client.connection.ws == nil {
             _ = try await self.client.connect().get()

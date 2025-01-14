@@ -27,5 +27,11 @@ let package = Package(
                 .product(name: "XRPLSwift", package: "XRPLSwift"),
             ]
         ),
+        .testTarget(
+            name: "LunchXrplSwiftTests",
+            dependencies: [
+                "LunchXrplSwift"
+            ]
+        ),
     ]
 )
