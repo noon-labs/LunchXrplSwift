@@ -1,5 +1,5 @@
 {
-  "originHash" : "37248a6b754751e6d5e7bacb05dc786410a19cc341e98c85b440c47de9b6b057",
+  "originHash" : "af6f6aa2c2006d3ef89d17b1dee4fdf9b5c000295c42f21cffcced383eb90fb8",
   "pins" : [
     {
       "identity" : "anycodable",
@@ -69,8 +69,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/apple/swift-nio.git",
       "state" : {
-        "revision" : "dca6594f65308c761a9c409e09fbf35f48d50d34",
-        "version" : "2.77.0"
+        "revision" : "27c839f4700069928196cd0e9fa03b22f297078a",
+        "version" : "2.78.0"
       }
     },
     {
@@ -130,10 +130,10 @@
     {
       "identity" : "xrplswift",
       "kind" : "remoteSourceControl",
-      "location" : "https://github.com/girin-app/XRPLSwift.git",
+      "location" : "https://github.com/noon-labs/XRPLSwift.git",
       "state" : {
-        "branch" : "main",
-        "revision" : "4aee7e6a132579f11a42179c6562f6a5e2fa0f77"
+        "branch" : "dev",
+        "revision" : "61f07131a160fa6ce4f320dc6db181622ac144ff"
       }
     }
   ],

@@ -16,7 +16,7 @@ let package = Package(
             targets: ["LunchXrplSwift"]),
     ],
     dependencies: [
-        .package(url: "https://github.com/girin-app/XRPLSwift.git", branch: "main")
+        .package(url: "https://github.com/noon-labs/XRPLSwift.git", branch: "dev")
     ],
     targets: [
         // Targets are the basic building blocks of a package, defining a module or a test suite.
