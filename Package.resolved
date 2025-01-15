@@ -1,5 +1,5 @@
 {
-  "originHash" : "af6f6aa2c2006d3ef89d17b1dee4fdf9b5c000295c42f21cffcced383eb90fb8",
+  "originHash" : "c40c8447249b65d6a5130ab5592db9d42a5db518b6f9b6df8a734817942978c7",
   "pins" : [
     {
       "identity" : "anycodable",
@@ -133,7 +133,7 @@
       "location" : "https://github.com/noon-labs/XRPLSwift.git",
       "state" : {
         "branch" : "dev",
-        "revision" : "ec6bd5891848c7584d9222a5505d17cf5dcddb24"
+        "revision" : "f2eae2bae0c2fb1549b00b576fdf2227077e0ea2"
       }
     }
   ],

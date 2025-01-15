@@ -225,6 +225,29 @@ public struct Wallet {
         return try await self.sendTransaction(tx: tx, memo: memo)
     }
     
+    public func addToken(
+        value: String,
+        issuer: String,
+        currency: String
+    ) async throws -> (String, SubmitResponse) {
+        let tx = TrustSet(limitAmount: IssuedCurrencyAmount(value: value,
+                                                            issuer: issuer,
+                                                            currency: currency),
+                          flags: TrustSetFlagsInterface(tfSetNoRipple: true))
+        return try await self.sendTransaction(tx: tx)
+    }
+    
+    public func removeToken(
+        issuer: String,
+        currency: String
+    ) async throws -> (String, SubmitResponse) {
+        let tx = TrustSet(limitAmount: IssuedCurrencyAmount(value: "0",
+                                                            issuer: issuer,
+                                                            currency: currency),
+                          flags: TrustSetFlagsInterface(tfSetNoRipple: true, tfClearFreeze: true))
+        return try await self.sendTransaction(tx: tx)
+    }
+    
     public func sendNFTSendRequest(
         nfTokenId: String,
         to: String,
