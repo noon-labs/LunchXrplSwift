@@ -327,6 +327,27 @@ public struct Wallet {
         return try await self.sendTransaction(tx: tx)
     }
     
+    public func sendIcToRootNetwork(
+        amount: String,
+        issuerAddress: String,
+        currency: String,
+        trnAddress: String,
+        depositAddress: String? = nil
+    ) async throws -> (String, SubmitResponse) {
+        // deposit address may be frequently changed
+        // in Aug 30 2024, the AltNet bridge is connected via TRN_BRIDGE_DEPOSIT_ADDRESS_ALTNET
+        // you may use this constant
+        let destination = depositAddress ?? TRN_BRIDGE_DEPOSIT_ADDRESS
+        let tx = Payment(amount: .ic(IssuedCurrencyAmount(value: amount,
+                                                          issuer: issuerAddress,
+                                                          currency: currency)),
+                         destination: destination)
+        let bridgeMemo = Memo(trnAddress.strToHex(), "Address".strToHex(), nil)
+        tx.memos = [MemoWrapper(bridgeMemo)]
+        
+        return try await self.sendTransaction(tx: tx)
+    }
+    
     // addCurrency == TrustSet transaction
     // setTrustLine == make this asset receivable in my wallet
     // In XRPL, the fungible token should be allowed in my wallet first
