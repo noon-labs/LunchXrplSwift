@@ -214,12 +214,14 @@ public struct Wallet {
         amount: Amount,
         to: String,
         destinationTag: Int? = nil,
-        memo: String? = nil
+        memo: String? = nil,
+        flags: PaymentFlagsInterface = .init()
     ) async throws -> (String, SubmitResponse) {
         let tx = Payment(
             amount: amount,
             destination: to,
-            destinationTag: destinationTag
+            destinationTag: destinationTag,
+            flags: flags
         )
         
         return try await self.sendTransaction(tx: tx, memo: memo)
