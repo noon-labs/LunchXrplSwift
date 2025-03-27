@@ -389,6 +389,17 @@ public struct Wallet {
         return try await self.sendTransaction(tx: tx, memo: memo)
     }
     
+    public func offerCreate(
+        takerGets: Amount,
+        takerPays: Amount,
+        flags: OfferCreateFlagsInterface
+    ) async throws -> (String, SubmitResponse) {
+        let tx = OfferCreate(takerGets: takerGets,
+                             takerPays: takerPays,
+                             flags: flags)
+        return try await self.sendTransaction(tx: tx)
+    }
+    
     public func sendTransaction(
         tx: BaseTransaction,
         memo: String? = nil
