@@ -402,23 +402,14 @@ public struct Wallet {
     
     public func sendTransaction(
         tx: BaseTransaction,
-        memo: String? = nil
+        memos: [MemoWrapper]?
     ) async throws -> (String, SubmitResponse) {
         if !self.client.isConnected() {
             _ = try await self.client.connect().get()
         }
         
         tx.account = self.keyPairs.classicAddress
-        
-        if let memo  {
-            let memo = Memo(
-                memo.strToHex(),
-                "Description".strToHex(),
-                "text/plain".strToHex()
-            )
-            
-            tx.memos = [MemoWrapper(memo)]
-        }
+        tx.memos = memos
         
         let txData = try JSONEncoder().encode(tx)
         let jsonTx = try JSONSerialization.jsonObject(with: txData, options: .mutableLeaves) as! [String: AnyObject]
@@ -449,6 +440,24 @@ public struct Wallet {
         }
         
         return (signedTx.hash, result)
+    }
+    
+    public func sendTransaction(
+        tx: BaseTransaction,
+        memo: String? = nil
+    ) async throws -> (String, SubmitResponse) {
+        let memos: [MemoWrapper]?
+        if let memo {
+            let memo = Memo(
+                memo.strToHex(),
+                "Description".strToHex(),
+                "text/plain".strToHex()
+            )
+            memos = [MemoWrapper(memo)]
+        } else {
+            memos = nil
+        }
+        return try await sendTransaction(tx: tx, memos: memos)
     }
     
     public func checkTx(txHash: String) async throws -> Bool {
