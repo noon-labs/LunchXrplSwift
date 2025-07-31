@@ -469,32 +469,38 @@ public struct Wallet {
         
         debugPrint("finding for hash", txHash)
         
-        for _ in DEFAULT_RETRY_COUNT {
+        for i in DEFAULT_RETRY_COUNT {
             try await Task.sleep(nanoseconds: DEFAULT_RETRY_INTERVAL * 1_000_000_000)
-            
-            let resp = try await self.client.request(req: req)?.get()
-            
-            // if the tx can found, check whether it is succeeded of not
-            if let res = resp as? BaseResponse<TxResponse> {
+            do {
+                print("KUSH TRY \(i)")
+                let resp = try await self.client.request(req: req)?.get()
                 
-                guard let result = res.result else {
-                    throw WalletError.NoResult
-                }
-                
-                if let validated = result.validated,
-                   validated, let meta = result.meta {
-                    if meta.transactionResult == "tesSUCCESS" {
-                        return true
-                    } else {
-                        return false
+                // if the tx can found, check whether it is succeeded of not
+                if let res = resp as? BaseResponse<TxResponse> {
+                    
+                    guard let result = res.result else {
+                        throw WalletError.NoResult
                     }
+                    
+                    if let validated = result.validated,
+                       validated, let meta = result.meta {
+                        if meta.transactionResult == "tesSUCCESS" {
+                            return true
+                        } else {
+                            return false
+                        }
+                    }
+                } else {
+                    debugPrint("retrying...")
+                    continue
                 }
-            } else {
+            } catch {
+                print("KUSH11 ERROR \(error)")
                 debugPrint("retrying...")
                 continue
             }
         }
-        
+        print("KUSH TIMEOUT")
         throw WalletError.TxTimeout
     }
     
