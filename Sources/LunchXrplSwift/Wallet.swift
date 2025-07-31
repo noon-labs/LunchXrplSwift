@@ -21,7 +21,7 @@ public enum WalletError: Error {
     case NotFound
 }
 
-let DEFAULT_RETRY_COUNT = 1...20
+let DEFAULT_RETRY_COUNT = 1...30
 let DEFAULT_RETRY_INTERVAL: UInt64 = 1
 let TRN_BRIDGE_DEPOSIT_ADDRESS = "rPotpackAV39ysG1cyprYDa6ambUAPtKHk"
 let TRN_BRIDGE_DEPOSIT_ADDRESS_ALTNET = "rnZiKvrWFGi2JfHtLS8kxcqCqVhch6W5k5"
@@ -469,10 +469,9 @@ public struct Wallet {
         
         debugPrint("finding for hash", txHash)
         
-        for i in DEFAULT_RETRY_COUNT {
+        for _ in DEFAULT_RETRY_COUNT {
             try await Task.sleep(nanoseconds: DEFAULT_RETRY_INTERVAL * 1_000_000_000)
             do {
-                print("KUSH TRY \(i)")
                 let resp = try await self.client.request(req: req)?.get()
                 
                 // if the tx can found, check whether it is succeeded of not
@@ -495,12 +494,10 @@ public struct Wallet {
                     continue
                 }
             } catch {
-                print("KUSH11 ERROR \(error)")
                 debugPrint("retrying...")
                 continue
             }
         }
-        print("KUSH TIMEOUT")
         throw WalletError.TxTimeout
     }
     
