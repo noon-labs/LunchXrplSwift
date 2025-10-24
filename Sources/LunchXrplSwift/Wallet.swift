@@ -324,9 +324,7 @@ public struct Wallet {
         )
         
         let bridgeMemo = Memo(trnAddress.strToHex(), "Address".strToHex(), nil)
-        tx.memos = [MemoWrapper(bridgeMemo)]
-        
-        return try await self.sendTransaction(tx: tx)
+        return try await self.sendTransaction(tx: tx, memos: [MemoWrapper(bridgeMemo)])
     }
     
     public func sendIcToRootNetwork(
@@ -344,10 +342,9 @@ public struct Wallet {
                                                           issuer: issuerAddress,
                                                           currency: currency)),
                          destination: destination)
-        let bridgeMemo = Memo(trnAddress.strToHex(), "Address".strToHex(), nil)
-        tx.memos = [MemoWrapper(bridgeMemo)]
         
-        return try await self.sendTransaction(tx: tx)
+        let bridgeMemo = Memo(trnAddress.strToHex(), "Address".strToHex(), nil)
+        return try await self.sendTransaction(tx: tx, memos: [MemoWrapper(bridgeMemo)])
     }
     
     // addCurrency == TrustSet transaction
@@ -409,7 +406,9 @@ public struct Wallet {
         }
         
         tx.account = self.keyPairs.classicAddress
-        tx.memos = memos
+        if let memos {
+            tx.memos = memos
+        }
         
         let txData = try JSONEncoder().encode(tx)
         let jsonTx = try JSONSerialization.jsonObject(with: txData, options: .mutableLeaves) as! [String: AnyObject]
