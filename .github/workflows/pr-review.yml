@@ -1,0 +1,341 @@
+name: Automated PR Review with Claude
+
+on:
+  pull_request:
+    types: [opened, ready_for_review]
+    branches:
+      - dev
+
+permissions:
+    contents: read
+    pull-requests: write
+    issues: write
+
+jobs:
+  claude-review:
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.draft == false
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Fetch all history for proper diff analysis
+
+      - name: Check PR size
+        id: pr-size
+        run: |
+          CHANGED_LINES=$(git diff --numstat origin/${{ github.base_ref }}...HEAD | awk '{sum+=$1+$2} END {print sum}')
+          echo "changed_lines=$CHANGED_LINES" >> $GITHUB_OUTPUT
+          if [ "$CHANGED_LINES" -gt 2000 ]; then
+            echo "skip_review=true" >> $GITHUB_OUTPUT
+            echo "PR too large for automated review ($CHANGED_LINES lines changed)"
+          fi
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Get changed files
+        id: changed-files
+        run: |
+          # Get the diff between the PR branch and base branch
+
+          if ! git diff --name-status origin/${{ github.base_ref }}...HEAD > ${{ runner.temp }}/changed_files.txt; then
+            echo "Error: Failed to get changed files"
+            exit 1
+          fi
+
+          git diff --name-status origin/${{ github.base_ref }}...HEAD > ${{ runner.temp }}/changed_files.txt
+
+          # Get detailed diff for code analysis
+          git diff origin/${{ github.base_ref }}...HEAD > ${{ runner.temp }}/pr_diff.txt
+
+          # Count changes
+          echo "files_changed=$(git diff --name-only origin/${{ github.base_ref }}...HEAD | wc -l)" >> $GITHUB_OUTPUT
+          echo "additions=$(git diff --numstat origin/${{ github.base_ref }}...HEAD | awk '{sum+=$1} END {print sum}')" >> $GITHUB_OUTPUT
+          echo "deletions=$(git diff --numstat origin/${{ github.base_ref }}...HEAD | awk '{sum+=$2} END {print sum}')" >> $GITHUB_OUTPUT
+
+      - name: Analyze with Claude
+        id: claude-analysis
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          if [ -z "$ANTHROPIC_API_KEY" ]; then
+            echo "Error: ANTHROPIC_API_KEY is not set"
+            exit 1
+          fi
+
+          # Create the review script
+          cat > ${{ runner.temp }}/review_pr.js << 'EOF'
+          const fs = require('fs');
+          const https = require('https');
+
+          const API_KEY = process.env.ANTHROPIC_API_KEY;
+          const PR_TITLE = process.env.PR_TITLE || '';
+          const PR_BODY = process.env.PR_BODY || '';
+          const PR_AUTHOR = process.env.PR_AUTHOR || '';
+
+          const diffContent = fs.readFileSync(process.env.DIFF_FILE, 'utf-8');
+          const changedFiles = fs.readFileSync(process.env.CHANGED_FILES, 'utf-8');
+
+          // Read CLAUDE.md for context
+          let claudeMdContent = '';
+          try {
+            claudeMdContent = fs.readFileSync('./CLAUDE.md', 'utf-8');
+          } catch (e) {
+            console.log('CLAUDE.md not found, proceeding without it');
+          }
+
+          const prompt = `You are reviewing a pull request for LunchXrplSwift, a Swift Package Manager library that provides XRPL (XRP Ledger) functionality. Please provide a thorough code review with line-specific feedback.
+
+          PR Title: ${PR_TITLE}
+          PR Description: ${PR_BODY}
+          Author: ${PR_AUTHOR}
+
+          Project Context from CLAUDE.md:
+          ${claudeMdContent ? claudeMdContent.substring(0, 3000) : 'Not available'}
+
+          Changed Files:
+          ${changedFiles}
+
+          Code Diff with line numbers:
+          ${diffContent.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '').substring(0, 15000)}
+
+          Please analyze this PR and provide a JSON response with inline code comments. Focus on the actual changed lines (marked with + in the diff).
+
+          IMPORTANT: For line numbers, use the NEW file line numbers (the ones after the @@ markers on the right side).
+          In unified diff format: @@ -old_start,old_count +new_start,new_count @@
+
+          Response format:
+          {
+            "body": "Overall PR review summary in markdown",
+            "event": "COMMENT",
+            "comments": [
+              {
+                "path": "Sources/LunchXrplSwift/File.swift",
+                "line": 125,
+                "side": "RIGHT",
+                "body": "Comment text in markdown. For suggestions use: \`\`\`suggestion\nsuggested code here\n\`\`\`"
+              }
+            ]
+          }
+
+          Guidelines for Swift Package Manager Library Development:
+          - Only comment on actual changes (lines starting with +)
+          - Use line numbers from the NEW file (after changes)
+          - For code suggestions, use GitHub's suggestion format with triple backticks and 'suggestion'
+          - Focus on Swift Package Manager and XRPL-specific concerns:
+            * Public API design and backward compatibility
+            * Swift Package Manager conventions and structure
+            * XRPL protocol compliance and best practices
+            * Async/await patterns and concurrency safety
+            * Error handling and proper error propagation
+            * Memory management (ARC, retain cycles, weak references)
+            * Swift coding conventions and style guidelines
+            * Thread safety and concurrent access patterns
+            * Network security and data validation
+            * XRPL transaction handling and validation
+            * NFT and token management functionality
+            * Cross-platform compatibility (iOS/macOS)
+            * Performance considerations for blockchain operations
+            * Proper use of XRPLSwift dependency
+            * Unit test coverage and testability
+          - Be constructive and specific
+          - Maximum 10-15 most important comments
+          - Consider Swift version compatibility and Package.swift requirements
+          - Focus on library usability and developer experience`;
+
+          const requestData = JSON.stringify({
+            model: 'claude-sonnet-4-20250514',
+            max_tokens: 8192,
+            temperature: 0,
+            messages: [
+              {
+                role: 'user',
+                content: prompt
+              }
+            ]
+          });
+
+          const options = {
+            hostname: 'api.anthropic.com',
+            port: 443,
+            path: '/v1/messages',
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'x-api-key': API_KEY,
+              'anthropic-version': '2023-06-01',
+              'Content-Length': Buffer.byteLength(requestData)
+            }
+          };
+
+          const req = https.request(options, (res) => {
+            let data = '';
+
+            res.on('data', (chunk) => {
+              data += chunk;
+            });
+
+            res.on('end', () => {
+              try {
+                const response = JSON.parse(data);
+                if (response.content && response.content[0]) {
+                  let reviewText = response.content[0].text;
+
+                  // Remove markdown code blocks if present
+                  reviewText = reviewText.replace(/^```json\s*\n?/, '').replace(/\n?```\s*$/, '');
+
+                  // Parse the JSON response from Claude
+                  const reviewData = JSON.parse(reviewText);
+                  fs.writeFileSync(process.env.REVIEW_OUTPUT, JSON.stringify(reviewData, null, 2));
+                  console.log('Review generated successfully');
+                } else {
+                  console.error('Unexpected response format. Status:', res.statusCode);
+                  console.error('Response:', data.substring(0, 500));
+                  process.exit(1);
+                }
+              } catch (e) {
+                console.error('Failed to parse response as JSON:', e.message);
+                console.error('Raw response (first 1000 chars):', data.substring(0, 1000));
+                process.exit(1);
+              }
+            });
+          });
+
+          req.on('error', (e) => {
+            console.error('Request failed:', e);
+            process.exit(1);
+          });
+
+          req.write(requestData);
+          req.end();
+          EOF
+
+          # Run the review
+          DIFF_FILE="${{ runner.temp }}/pr_diff.txt" \
+          CHANGED_FILES="${{ runner.temp }}/changed_files.txt" \
+          PR_TITLE="${{ github.event.pull_request.title }}" \
+          PR_BODY="${{ github.event.pull_request.body }}" \
+          PR_AUTHOR="${{ github.event.pull_request.user.login }}" \
+          REVIEW_OUTPUT="${{ runner.temp }}/review.json" \
+          node ${{ runner.temp }}/review_pr.js
+
+          # Store review for next step
+          echo "review_file=${{ runner.temp }}/review.json" >> $GITHUB_OUTPUT
+
+      - name: Post review with inline comments
+        if: success()
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const fs = require('fs');
+            const reviewData = JSON.parse(fs.readFileSync('${{ steps.claude-analysis.outputs.review_file }}', 'utf-8'));
+
+            // Get the latest commit SHA for the PR
+            const { data: pr } = await github.rest.pulls.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.issue.number
+            });
+
+            // Prepare review body with stats
+            const reviewBody = `${reviewData.body || '## 🤖 Automated Claude Review'}
+
+            ---
+            📊 **PR Stats**: ${{ steps.changed-files.outputs.files_changed }} files changed, +${{ steps.changed-files.outputs.additions }}/-${{ steps.changed-files.outputs.deletions }} lines
+
+            *This review was generated automatically by Claude AI. Click on suggestions to apply them directly.*`;
+
+            // Create the review with inline comments
+            try {
+              const review = await github.rest.pulls.createReview({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                pull_number: context.issue.number,
+                commit_id: pr.head.sha,
+                body: reviewBody,
+                event: reviewData.event || 'COMMENT',
+                comments: reviewData.comments || []
+              });
+
+              console.log('Review posted successfully:', review.data.html_url);
+            } catch (error) {
+              console.error('Error posting review:', error);
+
+              // Fallback to regular comment if review fails
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: `## 🤖 Automated Claude Review\n\n${reviewData.body || 'Review generation completed but could not post inline comments.'}\n\nError: ${error.message.substring(0, 200)}`
+              });
+            }
+
+      - name: Add labels based on review
+        if: success()
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const fs = require('fs');
+            const reviewData = JSON.parse(fs.readFileSync('${{ steps.claude-analysis.outputs.review_file }}', 'utf-8'));
+
+            const labels = [];
+
+            // Parse review body for risk indicators
+            const reviewBody = (reviewData.body || '').toLowerCase();
+
+            if (reviewBody.includes('high risk') || reviewBody.includes('critical')) {
+              labels.push('high-risk');
+              labels.push('needs-careful-review');
+            } else if (reviewBody.includes('medium risk')) {
+              labels.push('medium-risk');
+            } else if (reviewBody.includes('low risk')) {
+              labels.push('low-risk');
+            }
+
+            // Check comments for specific issues
+            const allComments = reviewData.comments || [];
+            const commentBodies = allComments.map(c => (c.body || '').toLowerCase()).join(' ');
+
+            if (commentBodies.includes('security')) {
+              labels.push('security-review-needed');
+            }
+            if (commentBodies.includes('xrpl') || commentBodies.includes('transaction') || commentBodies.includes('ledger')) {
+              labels.push('xrpl-changes');
+            }
+            if (commentBodies.includes('nft') || commentBodies.includes('token')) {
+              labels.push('nft-token-changes');
+            }
+            if (commentBodies.includes('breaking change') || commentBodies.includes('api change')) {
+              labels.push('breaking-change');
+            }
+            if (commentBodies.includes('performance')) {
+              labels.push('performance');
+            }
+            if (commentBodies.includes('wallet') || commentBodies.includes('account')) {
+              labels.push('wallet-functionality');
+            }
+            if (commentBodies.includes('network') || commentBodies.includes('connection')) {
+              labels.push('network-changes');
+            }
+
+            // Add review-completed label
+            labels.push('claude-reviewed');
+
+            if (labels.length > 0) {
+              try {
+                await github.rest.issues.addLabels({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: context.issue.number,
+                  labels: labels
+                });
+              } catch (error) {
+                console.log('Warning: Could not add some labels:', error.message);
+              }
+            }
