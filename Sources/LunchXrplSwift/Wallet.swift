@@ -29,106 +29,106 @@ let TRN_BRIDGE_DEPOSIT_ADDRESS_ALTNET = "rnZiKvrWFGi2JfHtLS8kxcqCqVhch6W5k5"
 public struct Wallet {
     public var keyPairs: XRPLSwift.Wallet
     public var client: XrplClient!
-    
+
     public init(_ wallet: XRPLSwift.Wallet, _ node: String = Servers.devnet.rawValue) {
         self.keyPairs = wallet
         self.client = try! XrplClient(server: node)
     }
-    
+
     public static func generateWallet(node: String = Servers.devnet.rawValue) throws -> (String, Wallet) {
         let mnemonics = try Bip39Mnemonic.create(strength: .hight)
         let wallet = try self.fromMnemonics(mnemonics: mnemonics, node: node)
-        
+
         return (mnemonics, wallet)
     }
-    
+
     public static func fromMnemonics(mnemonics: String, node: String = Servers.devnet.rawValue) throws -> Wallet {
         let wallet = try XRPLSwift.Wallet.fromMnemonic(
             mnemonics,
             MnemonicOptions(derivationPath: DerivationPath(), algorithm: .secp256k1)
         )
-        
+
         return Wallet(wallet, node)
     }
-    
+
     public static func fromSeed(seed: String, node: String = Servers.devnet.rawValue) -> Wallet {
         return Wallet(XRPLSwift.Wallet.fromSeed(seed), node)
     }
-    
+
     public static func validateMnemonics(mnemonics: String) throws {
         try XRPLSwift.Bip39Mnemonic.validateMnemonics(mnemonics)
     }
-    
+
     public func disconnect() async throws {
         _ = try await self.client.disconnect().get()
     }
-    
+
     public func getAccountInfo(address: String? = nil) async throws -> AccountInfoResponse {
         if self.client.connection.ws == nil {
             _ = try await self.client.connect().get()
         }
-        
+
         guard let eventLoop = self.client.connection.ws?.eventLoop else {
             throw WalletError.NotFound
         }
-        
+
         let promise = eventLoop.makePromise(of: AccountInfoResponse.self)
-        
+
         eventLoop.execute {
             Task {
                 do {
                     if !self.client.isConnected() {
                         _ = try await self.client.connect().get()
                     }
-                    
+
                     let xrpAddress = address ?? self.keyPairs.classicAddress
                     let accInfo = AccountInfoRequest(
                         account: xrpAddress,
                         queue: true,
                         strict: true
                     )
-                    
+
                     guard let resp = try await self.client.request(r: accInfo).get() as? BaseResponse<AccountInfoResponse>,
                           let result = resp.result else {
                         throw WalletError.NoResult
                     }
-                    
+
                     promise.succeed(result)
                 } catch {
                     promise.fail(error)
                 }
             }
         }
-        
+
         return try await promise.futureResult.get()
     }
-    
+
     public func getAccountLines(address: String? = nil, peer: String? = nil) async throws -> AccountLinesResponse {
         if self.client.connection.ws == nil {
             _ = try await self.client.connect().get()
         }
-        
+
         guard let eventLoop = self.client.connection.ws?.eventLoop else {
             throw WalletError.NotFound
         }
-        
+
         let promise = eventLoop.makePromise(of: AccountLinesResponse.self)
-        
+
         eventLoop.execute {
             Task {
                 do {
                     if !self.client.isConnected() {
                         _ = try await self.client.connect().get()
                     }
-                    
+
                     let xrpAddress = address ?? self.keyPairs.classicAddress
                     let accLines = AccountLinesRequest(account: xrpAddress, peer: peer)
-                    
+
                     guard let resp = try await self.client.request(r: accLines).get() as? BaseResponse<AccountLinesResponse>,
                           let result = resp.result else {
                         throw WalletError.NoResult
                     }
-                    
+
                     promise.succeed(result)
                 } catch {
                     promise.fail(error)
@@ -142,66 +142,66 @@ public struct Wallet {
         if self.client.connection.ws == nil {
             _ = try await self.client.connect().get()
         }
-        
+
         guard let eventLoop = self.client.connection.ws?.eventLoop else {
             throw WalletError.NotFound
         }
-        
+
         let promise = eventLoop.makePromise(of: AccountObjectsResponse.self)
-        
+
         eventLoop.execute {
             Task {
                 do {
                     if !self.client.isConnected() {
                         _ = try await self.client.connect().get()
                     }
-                    
+
                     let xrpAddress = address ?? self.keyPairs.classicAddress
                     let req = AccountObjectsRequest(account: xrpAddress)
-                    
+
                     guard let resp = try await self.client.request(r: req).get() as? BaseResponse<AccountObjectsResponse>,
                           let result = resp.result else {
                         throw WalletError.NoResult
                     }
-                    
+
                     promise.succeed(result)
                 } catch {
                     promise.fail(error)
                 }
             }
         }
-        
+
         return try await promise.futureResult.get()
     }
-    
+
     public func getNftListOfAccount(address: String?) async throws -> AccountNFTsResponse {
         if !self.client.isConnected() {
             _ = try await self.client.connect().get()
         }
-        
+
         let xrpAddress = address ?? self.keyPairs.classicAddress
-        
+
         let req = AccountNFTsRequest(account: xrpAddress)
         guard let resp = try? await self.client.request(r: req).get() as? BaseResponse<AccountNFTsResponse>,
               let result = resp.result else { throw WalletError.NoResult }
-        
+
         return result
     }
-    
+
     public func getUserTx(address: String?) async throws -> AccountTxResponse {
         if !self.client.isConnected() {
             _ = try await self.client.connect().get()
         }
-        
+
         let xrpAddress = address ?? self.keyPairs.classicAddress
-        
+
         let req = AccountTxRequest(account: xrpAddress)
         guard let resp = try await self.client.request(r: req).get() as? BaseResponse<AccountTxResponse>,
               let result = resp.result else { throw WalletError.NoResult }
-        
+
         return result
     }
-    
+
     /**
      amount
      - type string: Native XRP
@@ -223,10 +223,10 @@ public struct Wallet {
             destinationTag: destinationTag,
             flags: flags
         )
-        
+
         return try await self.sendTransaction(tx: tx, memo: memo)
     }
-    
+
     public func addToken(
         value: String,
         issuer: String,
@@ -238,7 +238,7 @@ public struct Wallet {
                           flags: TrustSetFlagsInterface(tfSetNoRipple: true))
         return try await self.sendTransaction(tx: tx)
     }
-    
+
     public func removeToken(
         issuer: String,
         currency: String
@@ -249,7 +249,7 @@ public struct Wallet {
                           flags: TrustSetFlagsInterface(tfSetNoRipple: true, tfClearFreeze: true))
         return try await self.sendTransaction(tx: tx)
     }
-    
+
     public func sendNFTSendRequest(
         nfTokenId: String,
         to: String,
@@ -261,34 +261,34 @@ public struct Wallet {
             owner: self.keyPairs.classicAddress,
             destination: to
         )
-        
+
         return try await self.sendTransaction(tx: tx, memo: memo)
     }
-    
+
     public func checkNFTSendOfferId(txHash: String) async throws -> String {
         if !self.client.isConnected() {
             _ = try await self.client.connect().get()
         }
-        
+
         let req = AccountObjectsRequest(account: self.keyPairs.classicAddress, type: .nftOffer, deletionBlockersOnly: false)
         guard let resp = try await self.client.request(r: req).get() as? BaseResponse<AccountObjectsResponse>,
               let result = resp.result else { throw WalletError.NoResult }
-        
+
         let nftOfferLists = result.accountObjects
-        
+
         for unitOffer in nftOfferLists {
             guard let offer: LENFTOffer = unitOffer.toAny() as? LENFTOffer else {
                 continue
             }
-            
+
             if offer.previousTxnId == txHash {
                 return offer.index
             }
         }
-        
+
         throw WalletError.NotFound
     }
-    
+
     // TODO: need implement below 2 off-chain methods
     //    public func recordNFTOfferIntoBackend(
     //        nfTokenId: String,
@@ -296,11 +296,11 @@ public struct Wallet {
     //    ) async throws {
     //
     //    }
-    
+
     //    public func retrieveArrivedNFTList() async throws -> [String: String]{
     //
     //    }
-    
+
     public func receiveNFT(
         nfTokenOfferId: String,
         memo: String? = nil
@@ -308,7 +308,7 @@ public struct Wallet {
         let tx = NFTokenAcceptOffer(nftokenSellOffer: nfTokenOfferId)
         return try await self.sendTransaction(tx: tx, memo: memo)
     }
-    
+
     public func sendXrpToRootNetwork(
         amount: String, // Decimal 6, integer-like string
         trnAddress: String, // 0xFFFF....1200
@@ -322,11 +322,11 @@ public struct Wallet {
             amount: .string(amount),
             destination: destination
         )
-        
+
         let bridgeMemo = Memo(trnAddress.strToHex(), "Address".strToHex(), nil)
         return try await self.sendTransaction(tx: tx, memos: [MemoWrapper(bridgeMemo)])
     }
-    
+
     public func sendIcToRootNetwork(
         amount: String,
         issuerAddress: String,
@@ -342,11 +342,11 @@ public struct Wallet {
                                                           issuer: issuerAddress,
                                                           currency: currency)),
                          destination: destination)
-        
+
         let bridgeMemo = Memo(trnAddress.strToHex(), "Address".strToHex(), nil)
         return try await self.sendTransaction(tx: tx, memos: [MemoWrapper(bridgeMemo)])
     }
-    
+
     // addCurrency == TrustSet transaction
     // setTrustLine == make this asset receivable in my wallet
     // In XRPL, the fungible token should be allowed in my wallet first
@@ -360,10 +360,10 @@ public struct Wallet {
             limitAmount: IssuedCurrencyAmount(value: "9999999999999999", issuer: assetIssuerAddress, currency: currency),
             flags: trustSetFlags
         )
-        
+
         return try await self.sendTransaction(tx: tx, memo: memo)
     }
-    
+
     public func removeCurrency(
         assetIssuerAddress: String,
         currency: String,
@@ -377,7 +377,7 @@ public struct Wallet {
 
         return try await self.sendTransaction(tx: tx, memo: memo)
     }
-    
+
     public func terminateAccount(
         depositHolder: String,
         memo: String? = nil
@@ -385,7 +385,7 @@ public struct Wallet {
         let tx = AccountDelete(destination: depositHolder)
         return try await self.sendTransaction(tx: tx, memo: memo)
     }
-    
+
     public func offerCreate(
         takerGets: Amount,
         takerPays: Amount,
@@ -396,7 +396,7 @@ public struct Wallet {
                              flags: flags)
         return try await self.sendTransaction(tx: tx)
     }
-    
+
     public func sendTransaction(
         tx: BaseTransaction,
         memos: [MemoWrapper]?
@@ -404,18 +404,18 @@ public struct Wallet {
         if !self.client.isConnected() {
             _ = try await self.client.connect().get()
         }
-        
+
         tx.account = self.keyPairs.classicAddress
-        if let memos {
-            tx.memos = memos
-        }
-        
+        // if let memos {
+        //     tx.memos = memos
+        // }
+
         let txData = try JSONEncoder().encode(tx)
         let jsonTx = try JSONSerialization.jsonObject(with: txData, options: .mutableLeaves) as! [String: AnyObject]
-        
+
         let filledTx = try await AutoFillSugar().autofill(self.client, jsonTx, 0).get()
         let signedTx = try self.keyPairs.sign(filledTx)
-        
+
         // don't have to sign
         // submit method will sign on behalf of me
         let resp = try await self.client.submit(
@@ -426,21 +426,21 @@ public struct Wallet {
                 wallet: self.keyPairs
             )
         ).get() as? BaseResponse<SubmitResponse>
-        
+
         guard let resp,
               let result = resp.result else { throw WalletError.NoResult }
-        
-        
+
+
         let prelimRes = result.engineResult
-        
+
         if prelimRes.hasPrefix("tem") {
             let errMsg = resp.result!.engineResultMessage
             throw WalletError.TxError(code: prelimRes, msg: errMsg)
         }
-        
+
         return (signedTx.hash, result)
     }
-    
+
     public func sendTransaction(
         tx: BaseTransaction,
         memo: String? = nil
@@ -458,28 +458,28 @@ public struct Wallet {
         }
         return try await sendTransaction(tx: tx, memos: memos)
     }
-    
+
     public func checkTx(txHash: String) async throws -> Bool {
         if !self.client.isConnected() {
             _ = try await self.client.connect().get()
         }
-        
+
         let req = TxRequest(transaction: txHash, binary: false)
-        
+
         debugPrint("finding for hash", txHash)
-        
+
         for _ in DEFAULT_RETRY_COUNT {
             try await Task.sleep(nanoseconds: DEFAULT_RETRY_INTERVAL * 1_000_000_000)
             do {
                 let resp = try await self.client.request(req: req)?.get()
-                
+
                 // if the tx can found, check whether it is succeeded of not
                 if let res = resp as? BaseResponse<TxResponse> {
-                    
+
                     guard let result = res.result else {
                         throw WalletError.NoResult
                     }
-                    
+
                     if let validated = result.validated,
                        validated, let meta = result.meta {
                         if meta.transactionResult == "tesSUCCESS" {
@@ -499,7 +499,7 @@ public struct Wallet {
         }
         throw WalletError.TxTimeout
     }
-    
+
     public func getServerInfo() async throws -> BaseResponse<ServerInfoResponse>? {
         if !self.client.isConnected() {
             _ = try await self.client.connect().get()
@@ -507,27 +507,27 @@ public struct Wallet {
         guard let eventLoop = self.client.connection.ws?.eventLoop else {
             throw WalletError.NotFound
         }
-        
+
         let promise = eventLoop.makePromise(of: Optional<BaseResponse<ServerInfoResponse>>.self)
-        
+
         eventLoop.execute {
             Task {
                 do {
                     if !self.client.isConnected() {
                         _ = try await self.client.connect().get()
                     }
-                    
+
                     let request = ServerInfoRequest()
                     let response = try await self.client.request(r: request).get()
                     let result = response as? BaseResponse<ServerInfoResponse>
-                    
+
                     promise.succeed(result)
                 } catch {
                     promise.fail(error)
                 }
             }
         }
-        
+
         return try await promise.futureResult.get()
     }
 }
