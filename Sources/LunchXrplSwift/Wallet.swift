@@ -386,6 +386,59 @@ public struct Wallet {
         return try await self.sendTransaction(tx: tx, memo: memo)
     }
     
+    /**
+     PaymentChannelCreate: 새로운 Payment Channel을 생성하고 XRP를 예치합니다.
+     amount: 채널에 예치할 XRP (drops 단위 string)
+     destination: 채널에서 XRP를 수령할 주소
+     settleDelay: 채널 종료 요청 후 실제 종료까지 대기 시간 (초)
+     publicKey: claim 서명에 사용할 공개키 (hex)
+     cancelAfter: (optional) 채널 만료 시간 (Ripple Epoch 기준 초)
+     destinationTag: (optional) destination tag
+     memo: (optional) tx memo
+     */
+    public func paymentChannelCreate(
+        amount: String,
+        destination: String,
+        settleDelay: Int,
+        publicKey: String,
+        cancelAfter: Int? = nil,
+        destinationTag: Int? = nil,
+        memo: String? = nil
+    ) async throws -> (String, SubmitResponse) {
+        let tx = PaymentChannelCreate(
+            amount: .string(amount),
+            destination: destination,
+            settleDelay: settleDelay,
+            publicKey: publicKey,
+            cancelAfter: cancelAfter,
+            destinationTag: destinationTag
+        )
+
+        return try await self.sendTransaction(tx: tx, memo: memo)
+    }
+
+    /**
+     PaymentChannelFund: 기존 Payment Channel에 XRP를 추가 예치합니다.
+     channel: 채널 ID (64자리 hex string)
+     amount: 추가 예치할 XRP (drops 단위 string)
+     expiration: (optional) 새로운 채널 만료 시간 (Ripple Epoch 기준 초)
+     memo: (optional) tx memo
+     */
+    public func paymentChannelFund(
+        channel: String,
+        amount: String,
+        expiration: Int? = nil,
+        memo: String? = nil
+    ) async throws -> (String, SubmitResponse) {
+        let tx = PaymentChannelFund(
+            channel: channel,
+            amount: .string(amount),
+            expiration: expiration
+        )
+
+        return try await self.sendTransaction(tx: tx, memo: memo)
+    }
+
     public func offerCreate(
         takerGets: Amount,
         takerPays: Amount,
