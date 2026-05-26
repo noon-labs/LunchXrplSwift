@@ -560,27 +560,58 @@ public struct Wallet {
         guard let eventLoop = self.client.connection.ws?.eventLoop else {
             throw WalletError.NotFound
         }
-        
+
         let promise = eventLoop.makePromise(of: Optional<BaseResponse<ServerInfoResponse>>.self)
-        
+
         eventLoop.execute {
             Task {
                 do {
                     if !self.client.isConnected() {
                         _ = try await self.client.connect().get()
                     }
-                    
+
                     let request = ServerInfoRequest()
                     let response = try await self.client.request(r: request).get()
                     let result = response as? BaseResponse<ServerInfoResponse>
-                    
+
                     promise.succeed(result)
                 } catch {
                     promise.fail(error)
                 }
             }
         }
-        
+
+        return try await promise.futureResult.get()
+    }
+
+    public func getFee() async throws -> BaseResponse<FeeResponse>? {
+        if !self.client.isConnected() {
+            _ = try await self.client.connect().get()
+        }
+        guard let eventLoop = self.client.connection.ws?.eventLoop else {
+            throw WalletError.NotFound
+        }
+
+        let promise = eventLoop.makePromise(of: Optional<BaseResponse<FeeResponse>>.self)
+
+        eventLoop.execute {
+            Task {
+                do {
+                    if !self.client.isConnected() {
+                        _ = try await self.client.connect().get()
+                    }
+
+                    let request = FeeRequest()
+                    let response = try await self.client.request(r: request).get()
+                    let result = response as? BaseResponse<FeeResponse>
+
+                    promise.succeed(result)
+                } catch {
+                    promise.fail(error)
+                }
+            }
+        }
+
         return try await promise.futureResult.get()
     }
 }
